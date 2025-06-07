@@ -1,26 +1,30 @@
-from enum import Enum as PyEnum # Use a different alias if 'Enum' is ambiguous
-from sqlmodel import SQLModel, Field
-from typing import Optional # Make sure Optional is imported if used
-from uuid import UUID, uuid4
+# app/models/schedule.py
+from sqlmodel import SQLModel, Field, Column, JSON
+from uuid import uuid4, UUID
 from datetime import datetime
-from typing import Literal
-
-# Example Enum definition
-class ScheduleStatus(str, PyEnum):
-    PENDING = "pending"
-    ACTIVE = "active"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
-    FAILED = "failed"
+from typing import List
+from app.models.enums import Platform, ScheduleState
 
 class Schedule(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    content_id: UUID                           # FK to ContentItem
+    user_id: UUID                               # link to auth.User.id
+    content_id: UUID                            # FK to ContentItem.id
+    platforms: List[Platform] = Field(
+        sa_column=Column(JSON)                  # stored as JSONB on Postgres
+    )
     run_at: datetime
-    platform: Literal["instagram","linkedin","x"]
-    state: Literal["scheduled","completed","cancelled"] = "scheduled"
+    timezone: str                               # e.g. "America/New_York"
+    status: ScheduleState = ScheduleState.scheduled
 
+# ---- DTOs ---------------------------------------------------------------
 class ScheduleCreate(SQLModel):
     content_id: UUID
+    platforms: List[Platform]
     run_at: datetime
-    platform: str
+    timezone: str
+
+class ScheduleUpdate(SQLModel):
+    platforms: List[Platform] | None = None
+    run_at: datetime | None = None
+    timezone: str | None = None
+    status: ScheduleState | None = None

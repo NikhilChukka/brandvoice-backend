@@ -7,7 +7,7 @@ from app.models.product import Product, ProductCreate, ProductRead
 router = APIRouter(prefix="/products", tags=["Products"])
 
 @router.post("/", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
-def create_product(data: ProductCreate, session: Session = Depends(db_session)):
+def create_product(data: ProductCreate, session: Session = db_session()):
     prod = Product.model_validate(data)
     session.add(prod)
     session.commit()
@@ -15,11 +15,11 @@ def create_product(data: ProductCreate, session: Session = Depends(db_session)):
     return prod
 
 @router.get("/", response_model=list[ProductRead])
-def list_products(session: Session = Depends(db_session)):
+def list_products(session: Session = db_session()):
     return session.exec(select(Product)).all()
 
 @router.get("/{pid}", response_model=ProductRead)
-def get_product(pid: UUID, session: Session = Depends(db_session)):
+def get_product(pid: UUID, session: Session = db_session()):
     prod = session.get(Product, pid)
     if not prod:
         raise HTTPException(404, "Product not found")
@@ -27,7 +27,7 @@ def get_product(pid: UUID, session: Session = Depends(db_session)):
 
 @router.put("/{pid}", response_model=ProductRead)
 def update_product(
-    pid: UUID, data: ProductCreate, session: Session = Depends(db_session)
+    pid: UUID, data: ProductCreate, session: Session = db_session()
 ):
     prod = session.get(Product, pid)
     if not prod:
@@ -41,7 +41,7 @@ def update_product(
     return prod
 
 @router.delete("/{pid}", status_code=204)
-def delete_product(pid: UUID, session: Session = Depends(db_session)):
+def delete_product(pid: UUID, session: Session = db_session()):
     prod = session.get(Product, pid)
     if not prod:
         raise HTTPException(404, "Product not found")

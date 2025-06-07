@@ -1,53 +1,86 @@
+# app/api/v1/endpoints/schedule.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from uuid import UUID
-from datetime import datetime
-from apscheduler.schedulers.background import BackgroundScheduler
-from app.api.v1.dependencies import db_session
-from app.models.schedule import Schedule, ScheduleCreate
+from app.api.v1.dependencies import db_session, current_user
+from app.models.schedule import Schedule, ScheduleCreate, ScheduleUpdate
+from app.models.user import User
+from fastapi import Response
+from typing import Any
 
-router = APIRouter(prefix="/schedules", tags=["Scheduler"])
+router = APIRouter(prefix="/users/{user_id}/schedules", tags=["Scheduler"])
 
-# ---- APScheduler singleton -------------------------------------------------
-scheduler = BackgroundScheduler(timezone="UTC")
-scheduler.start()
+# ───────────────────────── helpers
+def _own_or_404(session: Session, sid: UUID, user_id: UUID) -> Schedule:
+    sched = session.get(Schedule, sid)
+    if not sched or sched.user_id != user_id:
+        raise HTTPException(404, "Schedule not found")
+    return sched
 
-def _publish_job(schedule_id: str):
-    # TODO: integrate with your ADK SchedulerAgent
-    print(f"[{datetime.utcnow().isoformat()}] Publishing job {schedule_id}")
+# ───────────────────────── CRUD
+@router.get("/", response_model=dict)
+def list_schedules(
+    user_id: UUID,
+    session: Session = db_session(),
+    current: User = Depends(current_user)
+) -> dict[str, Any]:
+    if user_id != current.id:
+        raise HTTPException(403, "Forbidden")
+    stmt = select(Schedule).where(Schedule.user_id == user_id)
+    schedules = session.exec(stmt).all()
+    return {"count": len(schedules), "results": schedules}
 
-# ---- routes ----------------------------------------------------------------
 @router.post("/", response_model=Schedule, status_code=status.HTTP_201_CREATED)
 def create_schedule(
+    user_id: UUID,
     data: ScheduleCreate,
-    session: Session = Depends(db_session)
+    session: Session = db_session(),
+    current: User = Depends(current_user)
 ):
-    sched = Schedule.model_validate(data)
+    if user_id != current.id:
+        raise HTTPException(403, "Forbidden")
+    sched = Schedule.model_validate(data, update={"user_id": user_id})
     session.add(sched)
     session.commit()
     session.refresh(sched)
-
-    scheduler.add_job(
-        _publish_job,
-        "date",
-        id=str(sched.id),
-        run_date=sched.run_at,
-        args=[str(sched.id)],
-        replace_existing=True,
-    )
+    # TODO: enqueue APScheduler/Celery job here
     return sched
 
-@router.get("/", response_model=list[Schedule])
-def list_schedules(session: Session = Depends(db_session)):
-    return session.exec(select(Schedule)).all()
+@router.get("/{sid}", response_model=Schedule)
+def get_schedule(
+    user_id: UUID, sid: UUID,
+    session: Session = db_session(),
+    current: User = Depends(current_user)
+):
+    if user_id != current.id:
+        raise HTTPException(403, "Forbidden")
+    return _own_or_404(session, sid, user_id)
+
+@router.put("/{sid}", response_model=Schedule)
+def update_schedule(
+    user_id: UUID, sid: UUID,
+    data: ScheduleUpdate,
+    session: Session = db_session(),
+    current: User = Depends(current_user)
+):
+    if user_id != current.id:
+        raise HTTPException(403, "Forbidden")
+    sched = _own_or_404(session, sid, user_id)
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(sched, k, v)
+    session.add(sched)
+    session.commit()
+    session.refresh(sched)
+    return sched
 
 @router.delete("/{sid}", status_code=204)
-def cancel_schedule(sid: UUID, session: Session = Depends(db_session)):
-    sched = session.get(Schedule, sid)
-    if not sched:
-        raise HTTPException(404, "Schedule not found")
-
-    scheduler.remove_job(str(sid))
-    sched.state = "cancelled"
-    session.add(sched)
+def delete_schedule(
+    user_id: UUID, sid: UUID,
+    session: Session = db_session(),
+    current: User = Depends(current_user)
+):
+    if user_id != current.id:
+        raise HTTPException(403, "Forbidden")
+    sched = _own_or_404(session, sid, user_id)
+    session.delete(sched)
     session.commit()

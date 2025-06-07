@@ -3,15 +3,17 @@ from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 from uuid import UUID
-from ..dependencies import get_session  # your DB dep
+from ..dependencies import get_session, current_user  # Updated to import current_user
 from app.core.security import (
     verify_password, get_password_hash,
     create_access_token, create_refresh_token,
-    Token
+    Token,
+    get_current_active_user  # Added direct import for clarity in this file if preferred
 )
 from app.models.user import User, UserCreate, UserRead
 from jose import jwt, JWTError
 from app.core.config import get_settings
+
 _settings = get_settings()
 SECRET_KEY = _settings.secret_key
 ALGORITHM = _settings.algorithm
@@ -63,41 +65,21 @@ def refresh(token: str = Depends(oauth2_scheme)):
     new_refresh = create_refresh_token(payload["sub"])
     return Token(access_token=new_access, refresh_token=new_refresh)
 
-# ───────────────────────── helpers to protect routes
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_session)
-) -> User:
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: UUID = UUID(payload.get("sub"))
-    except (JWTError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid token")
-    user = db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
-
-def get_current_active_user(user: User = Depends(get_current_user)) -> User:
-    if not user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
-    return user
-
 # ───────────────────────── who-am-I
 @router.get("/me", response_model=UserRead)
-def me(current: User = Depends(get_current_active_user)):
+def me(current: User = Depends(current_user)):
     return current
 
 # ───────────────────────── sample protected
 @router.get("/demo-protected")
-def protected_route(current: User = Depends(get_current_active_user)):
+def protected_route(current: User = Depends(current_user)):
     return {"message": f"Hello {current.full_name or current.email}!"}
 
 
 @router.get("/user/{user_id}", response_model=UserRead, summary="Get a user’s public profile")
 def get_user_details(
     user_id: UUID,
-    current: User = Depends(get_current_active_user),   # <- your JWT guard
+    current: User = Depends(current_user),   # <- Use current_user from dependencies
     db: Session = Depends(get_session),                 # <- DB session
 ):
     """

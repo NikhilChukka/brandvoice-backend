@@ -1,14 +1,13 @@
 from dotenv import load_dotenv
 import os
+from app.core.db import engine  # Assuming your synchronous engine is here
+from app.models import user, schedule, content, product  # Import your SQLModel models here
+# from app.models import other_model # etc.
+from sqlmodel import SQLModel
 
 # Load .env file from the current directory (app)
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(dotenv_path=dotenv_path)
-
-from app.core.db import engine  # Assuming your synchronous engine is here
-from app.models import user # Import all your model files here
-# from app.models import other_model # etc.
-from sqlmodel import SQLModel
 
 def create_db_and_tables():
     print("Creating database tables...")
