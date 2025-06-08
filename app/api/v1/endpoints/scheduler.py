@@ -5,6 +5,7 @@ from uuid import UUID
 from app.api.v1.dependencies import db_session, current_user
 from app.models.schedule import Schedule, ScheduleCreate, ScheduleUpdate
 from app.models.user import User
+from app.models.content import ContentItem
 from fastapi import Response
 from typing import Any
 
@@ -39,6 +40,8 @@ def create_schedule(
 ):
     if user_id != current.id:
         raise HTTPException(403, "Forbidden")
+    if not session.get(ContentItem, data.content_id):
+        raise HTTPException(404, "Content item not found")
     sched = Schedule.model_validate(data, update={"user_id": user_id})
     session.add(sched)
     session.commit()

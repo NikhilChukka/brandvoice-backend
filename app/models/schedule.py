@@ -7,14 +7,17 @@ from app.models.enums import Platform, ScheduleState
 
 class Schedule(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    user_id: UUID                               # link to auth.User.id
-    content_id: UUID                            # FK to ContentItem.id
+    user_id: UUID  = Field(foreign_key="user.id")                             # link to auth.User.id
+    content_id: UUID = Field(foreign_key="contentitem.id")                        # FK to ContentItem.id
     platforms: List[Platform] = Field(
         sa_column=Column(JSON)                  # stored as JSONB on Postgres
     )
     run_at: datetime
     timezone: str                               # e.g. "America/New_York"
     status: ScheduleState = ScheduleState.scheduled
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    modified_at: datetime = Field(default_factory=datetime.utcnow, nullable=True)
+    
 
 # ---- DTOs ---------------------------------------------------------------
 class ScheduleCreate(SQLModel):
