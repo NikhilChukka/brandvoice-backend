@@ -11,6 +11,8 @@ class User(SQLModel, table=True):
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     modified_at: datetime = Field(default_factory=datetime.utcnow)
+    twitter_access_token: Optional[str] = None
+    twitter_access_token_secret: Optional[str] = None
 
 # Pydantic response & request schemas
 class UserCreate(SQLModel):

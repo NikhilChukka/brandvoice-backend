@@ -10,6 +10,7 @@ load_dotenv(dotenv_path=dotenv_path)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1 import router as api_v1_router
 from app.core.config import get_settings
 
@@ -25,6 +26,12 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=s.allow_origins, allow_credentials=True,
         allow_methods=["*"], allow_headers=["*"],
+    )
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=s.secret_key or "change-this-secret-key",
+        session_cookie="session",
+        max_age=60*60*24*7,  # 1 week
     )
     app.include_router(api_v1_router, prefix="/api/v1", tags=["v1"])
     return app
