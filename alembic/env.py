@@ -4,9 +4,26 @@ from sqlalchemy import pool
 from sqlmodel import SQLModel
 from app.models.db import *
 from alembic import context
+from dotenv import load_dotenv
+from pathlib import Path
+import os # Import os module
+
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# Set sqlalchemy.url from environment variable
+db_url = os.getenv("DATABASE_URL")
+if db_url:
+    config.set_main_option("sqlalchemy.url", db_url)
+else:
+    # Fallback or raise an error if DATABASE_URL is not set
+    # For now, let's print a warning. In a production scenario, you might want to raise an error.
+    print("Warning: DATABASE_URL environment variable not set. Alembic might not connect to the database.")
+
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
