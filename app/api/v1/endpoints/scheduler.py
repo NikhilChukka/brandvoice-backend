@@ -26,7 +26,7 @@ def list_schedules(
     current: User = Depends(current_user)
 ) -> dict[str, Any]:
     if user_id != current.id:
-        raise HTTPException(403, "Forbidden")
+        raise HTTPException(403, "Not allowed to access this user's schedules")
     stmt = select(Schedule).where(Schedule.user_id == user_id)
     schedules = session.exec(stmt).all()
     return {"count": len(schedules), "results": schedules}
@@ -39,7 +39,7 @@ def create_schedule(
     current: User = Depends(current_user)
 ):
     if user_id != current.id:
-        raise HTTPException(403, "Forbidden")
+        raise HTTPException(403, "Not allowed to access this user's schedules")
     if not session.get(ContentItem, data.content_id):
         raise HTTPException(404, "Content item not found")
     sched = Schedule.model_validate(data, update={"user_id": user_id})
@@ -56,7 +56,7 @@ def get_schedule(
     current: User = Depends(current_user)
 ):
     if user_id != current.id:
-        raise HTTPException(403, "Forbidden")
+        raise HTTPException(403, "Not allowed to access this user's schedules")
     return _own_or_404(session, sid, user_id)
 
 @router.put("/{sid}", response_model=Schedule)
@@ -67,7 +67,7 @@ def update_schedule(
     current: User = Depends(current_user)
 ):
     if user_id != current.id:
-        raise HTTPException(403, "Forbidden")
+        raise HTTPException(403, "Not allowed to access this user's schedules")
     sched = _own_or_404(session, sid, user_id)
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(sched, k, v)
