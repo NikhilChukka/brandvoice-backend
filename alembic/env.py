@@ -2,7 +2,10 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from sqlmodel import SQLModel
-from app.models.db import *
+from app.models.user import User
+from app.models.product import Product
+from app.models.schedule import Schedule
+from app.models.content import ContentItem
 from alembic import context
 from dotenv import load_dotenv
 from pathlib import Path
@@ -36,6 +39,8 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
   # Import Base from your models
 target_metadata = SQLModel.metadata # Set target_metadata to your SQLModel.metadata
+
+print(f"[DEBUG] tables registered: {list(target_metadata.tables)}")
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
