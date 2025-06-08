@@ -1,32 +1,32 @@
 from logging.config import fileConfig
+from pathlib import Path
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from sqlmodel import SQLModel
-from app.models.user import User
-from app.models.product import Product
-from app.models.schedule import Schedule
-from app.models.content import ContentItem
-from alembic import context
+import sys
 from dotenv import load_dotenv
-from pathlib import Path
-import os # Import os module
+from app.models import User, Schedule, ContentItem, Product  # Import all models to ensure they are registered with SQLAlchemy
+from alembic import context
+import os  # Ensure os module is imported
 
-
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+project_root = Path(__file__).resolve().parents[1]
+sys.path.append(str(project_root))  
+load_dotenv(project_root / ".env", override=False)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Set sqlalchemy.url from environment variable
-db_url = os.getenv("DATABASE_URL")
-if db_url:
-    config.set_main_option("sqlalchemy.url", db_url)
-else:
-    # Fallback or raise an error if DATABASE_URL is not set
-    # For now, let's print a warning. In a production scenario, you might want to raise an error.
-    print("Warning: DATABASE_URL environment variable not set. Alembic might not connect to the database.")
-
+# Explicitly set sqlalchemy.url from environment variable
+database_url_from_env = os.getenv("DATABASE_URL")
+if database_url_from_env:
+    config.set_main_option("sqlalchemy.url", database_url_from_env)
+    print(f"[DEBUG] Alembic sqlalchemy.url set from DATABASE_URL env var: {database_url_from_env}")
+elif not config.get_main_option("sqlalchemy.url"):  # Check if it was set by other means (e.g. direct value in alembic.ini)
+    raise ValueError(
+        "DATABASE_URL environment variable is not set, and sqlalchemy.url is not configured directly in alembic.ini. "
+        "Please set the DATABASE_URL environment variable or configure sqlalchemy.url in alembic.ini."
+    )
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -37,10 +37,8 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-  # Import Base from your models
-target_metadata = SQLModel.metadata # Set target_metadata to your SQLModel.metadata
-
-print(f"[DEBUG] tables registered: {list(target_metadata.tables)}")
+target_metadata = SQLModel.metadata
+print("[DEBUG] tables registered:", list(target_metadata.tables))
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
