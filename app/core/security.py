@@ -47,27 +47,28 @@ from app.models.user import User
 from fastapi import Depends, HTTPException, status # Added HTTPException, status
 from fastapi.security import OAuth2PasswordBearer # Added OAuth2PasswordBearer
 from uuid import UUID # Added UUID
-from app.core.db import get_session # Added to resolve get_session dependency for get_current_user
 from sqlmodel import Session # Added import for Session type hint
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.api.v1.dependencies import db_session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login") # Added for get_current_user
 
 # Moved from app.api.v1.endpoints.auth.py
-def get_current_user(
+async def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_session) # Assumes get_session is available or imported
+    db: AsyncSession = Depends(db_session)
 ) -> User:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: UUID = UUID(payload.get("sub"))
     except (JWTError, ValueError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    user = db.get(User, user_id)
+    user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
 
-def get_current_active_user(user: User = Depends(get_current_user)) -> User:
+async def get_current_active_user(user: User = Depends(get_current_user)) -> User:
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
     return user

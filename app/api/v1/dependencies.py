@@ -1,16 +1,29 @@
-from app.core.db import get_session, SYNC_MODE # Remove get_async_session if not used
 from fastapi import Depends
-from app.core.security import get_current_active_user # Corrected import path
+from app.core.db import get_async_session, get_session
 
-# expose a single name so routers stay clean
-def db_session():
-    return Depends(get_session)
+def db_session_sync():
+    gen = get_session()
+    session = next(gen)
+    try:
+        yield session
+    finally:
+        session.close()
 
+async def db_session_async():
+    agen = get_async_session()
+    session = await agen.__anext__()
+    try:
+        yield session
+    finally:
+        await session.close()
 
-# app/api/v1/dependencies.py  (add)
+if get_async_session is not None:
+    db_session = db_session_async
+else:
+    db_session = db_session_sync
+
 from app.models.user import User
+from app.core.security import get_current_active_user
 
-
-# This function now correctly uses get_current_active_user from app.core.security
 def current_user(user: User = Depends(get_current_active_user)) -> User:
     return user

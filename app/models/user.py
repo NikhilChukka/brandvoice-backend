@@ -13,6 +13,10 @@ class User(SQLModel, table=True):
     modified_at: datetime = Field(default_factory=datetime.utcnow)
     twitter_access_token: Optional[str] = None
     twitter_access_token_secret: Optional[str] = None
+    # in app/models/user.py
+    instagram_page_access_token: str | None = None
+    instagram_business_account_id: str | None = None
+
 
 # Pydantic response & request schemas
 class UserCreate(SQLModel):

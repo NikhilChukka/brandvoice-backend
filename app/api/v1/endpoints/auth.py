@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer 
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 from uuid import UUID
-from ..dependencies import get_session, current_user  # Updated to import current_user
+from ..dependencies import db_session, current_user  # Use db_session, not get_session
 from app.core.security import (
     verify_password, get_password_hash,
     create_access_token, create_refresh_token,
@@ -25,7 +26,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 # ───────────────────────── register
 @router.post("/register", response_model=UserRead, status_code=201)
-def register(data: UserCreate, db: Session = Depends(get_session)):
+async def register(data: UserCreate, db: AsyncSession = Depends(db_session)):
     user = User(
         email=data.email.lower(),
         full_name=data.full_name,
@@ -33,21 +34,22 @@ def register(data: UserCreate, db: Session = Depends(get_session)):
     )
     db.add(user)
     try:
-        db.commit()
-        db.refresh(user)
+        await db.commit()
+        await db.refresh(user)
     except IntegrityError:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=400, detail="Email already registered")
     return user
 
 # ───────────────────────── login
 @router.post("/login", response_model=Token)
-def login(
+async def login(
     form: OAuth2PasswordRequestForm = Depends(), 
-    db: Session = Depends(get_session)
+    db: AsyncSession = Depends(db_session)
 ):
     stmt = select(User).where(User.email == form.username.lower())
-    user = db.exec(stmt).first()
+    result = await db.execute(stmt)
+    user = result.scalars().first()
     if not user or not verify_password(form.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect credentials")
     access = create_access_token(str(user.id))
@@ -56,7 +58,7 @@ def login(
 
 # ───────────────────────── refresh
 @router.post("/refresh", response_model=Token)
-def refresh(token: str = Depends(oauth2_scheme)):
+async def refresh(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
@@ -67,20 +69,20 @@ def refresh(token: str = Depends(oauth2_scheme)):
 
 # ───────────────────────── who-am-I
 @router.get("/me", response_model=UserRead)
-def me(current: User = Depends(current_user)):
+async def me(current: User = Depends(current_user)):
     return current
 
 # ───────────────────────── sample protected
 @router.get("/demo-protected")
-def protected_route(current: User = Depends(current_user)):
+async def protected_route(current: User = Depends(current_user)):
     return {"message": f"Hello {current.full_name or current.email}!"}
 
 
 @router.get("/user/{user_id}", response_model=UserRead, summary="Get a user’s public profile")
-def get_user_details(
+async def get_user_details(
     user_id: UUID,
     current: User = Depends(current_user),   # <- Use current_user from dependencies
-    db: Session = Depends(get_session),                 # <- DB session
+    db: AsyncSession = Depends(db_session),                 # <- DB session
 ):
     """
     Fetch a single user's profile.
@@ -92,7 +94,7 @@ def get_user_details(
     if user_id != current.id and not getattr(current, "is_admin", False):
         raise HTTPException(status_code=403, detail="Not authorised")
 
-    user = db.get(User, user_id)
+    user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 

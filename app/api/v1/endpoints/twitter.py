@@ -27,7 +27,7 @@ def twitter_connect(request: Request, user: User = Depends(current_user)):
         raise HTTPException(status_code=500, detail=f"Twitter auth error: {e}")
 
 @router.get("/callback")
-def twitter_callback(request: Request, session: Session = db_session(), user: User = Depends(current_user)):
+def twitter_callback(request: Request, session: Session = Depends(db_session), user: User = Depends(current_user)):
     settings = get_settings()
     request_token = request.session.pop("request_token", None)
     if not request_token:
@@ -57,7 +57,7 @@ def twitter_callback(request: Request, session: Session = db_session(), user: Us
 def post_to_twitter(
     text: str = Form(...),
     media: Optional[List[UploadFile]] = File(None),
-    session: Session = db_session(),
+    session: Session = Depends(db_session),
     user: User = Depends(current_user)
 ):
     if not user.twitter_access_token or not user.twitter_access_token_secret:
