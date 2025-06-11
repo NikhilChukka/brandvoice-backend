@@ -41,10 +41,10 @@ class Settings(BaseSettings):
         env_file="../.env",  # Correct path to project root .env
     )
 
-    facebbook_app_id: str = os.getenv("FACEBOOK_OA2_CLIENT_ID", "")
+    facebook_app_id: str = os.getenv("FACEBOOK_OA2_CLIENT_ID", "")
     facebook_app_secret: str = os.getenv("FACEBOOK_OA2_CLIENT_SECRET", "")
     facebook_callback_url: str = os.getenv("FACEBOOK_CALLBACK_URL", "")
-
+    instagram_callback_url: str = os.getenv("INSTAGRAM_CALLBACK_URL", "")
 @lru_cache
 def get_settings() -> Settings:
     """

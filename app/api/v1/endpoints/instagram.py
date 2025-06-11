@@ -15,8 +15,8 @@ router = APIRouter(prefix="/instagram", tags=["Instagram"])
 def instagram_connect(request: Request, user: User = Depends(current_user)):
     fb_auth_url = "https://www.facebook.com/v23.0/dialog/oauth"
     params = {
-        "client_id" : settings.facebbook_app_id,
-        "redirect_uri" : settings.facebook_callback_url,
+        "client_id" : settings.facebook_app_id,
+        "redirect_uri" : settings.instagram_callback_url,
         "scope": "pages_show_list,instagram_basic,instagram_content_publish",
         "response_type": "code",
         "state": user.id
@@ -37,8 +37,8 @@ async def instagram_callback(
             detail="Missing code or state parameter in callback.")
     token_url = "https://graph.facebook.com/v23.0/oauth/access_token"
     params = {
-        "client_id": settings.facebbook_app_id,
-        "redirect_uri": settings.facebook_callback_url,
+        "client_id": settings.facebook_app_id,
+        "redirect_uri": settings.instagram_callback_url,
         "client_secret": settings.facebook_app_secret,
         "code": code
     }
@@ -51,9 +51,9 @@ async def instagram_callback(
         data = response1.json()
         access_token = data.get("access_token")
 
-    exchange_url = "https://graph.facebook.com/cv23.0/oauth/access_token"
+    exchange_url = "https://graph.facebook.com/v23.0/oauth/access_token"
     exchange_params = {
-        "client_id" : settings.facebbook_app_id,
+        "client_id" : settings.facebook_app_id,
         "grant_type": "fb_exchange_token",
         "fb_exchange_token": access_token,
         "client_secret": settings.facebook_app_secret
@@ -152,7 +152,7 @@ async def publish_media(
         raise HTTPException(400, "Instagram not connected")
     url = f"https://graph.facebook.com/v23.0/{user.instagram_business_account_id}/media_publish"
     params = {
-        "creation_id": container_id,
+        "container_id": container_id,
         "access_token": user.instagram_page_access_token
     }
     async with httpx.AsyncClient() as client:

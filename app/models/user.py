@@ -16,7 +16,8 @@ class User(SQLModel, table=True):
     # in app/models/user.py
     instagram_page_access_token: str | None = None
     instagram_business_account_id: str | None = None
-
+    fb_page_id: str | None = None
+    fb_page_access_token: str | None = None
 
 # Pydantic response & request schemas
 class UserCreate(SQLModel):
