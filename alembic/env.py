@@ -1,13 +1,13 @@
 from logging.config import fileConfig
 from pathlib import Path
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import create_engine, pool
 from sqlmodel import SQLModel
 import sys
 from dotenv import load_dotenv
 from app.models import User, Schedule, ContentItem, Product  # Import all models to ensure they are registered with SQLAlchemy
 from alembic import context
 import os  # Ensure os module is imported
+from app.core.config import get_settings
 
 project_root = Path(__file__).resolve().parents[1]
 sys.path.append(str(project_root))  
@@ -40,11 +40,9 @@ if config.config_file_name is not None:
 target_metadata = SQLModel.metadata
 print("[DEBUG] tables registered:", list(target_metadata.tables))
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
-
+settings = get_settings()
+# Remove '+asyncpg' for sync migrations
+sync_url = settings.database_url.replace("+asyncpg", "")
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -58,9 +56,8 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=sync_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -77,15 +74,11 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-
+    connectable = create_engine(sync_url, poolclass=pool.NullPool)
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
         )
 
         with context.begin_transaction():

@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     facebook_app_secret: str = os.getenv("FACEBOOK_OA2_CLIENT_SECRET", "")
     facebook_callback_url: str = os.getenv("FACEBOOK_CALLBACK_URL", "")
     instagram_callback_url: str = os.getenv("INSTAGRAM_CALLBACK_URL", "")
+
+    youtube_client_id : str = os.getenv("YOUTUBE_CLIENT_ID", "")
+    youtube_client_secret : str = os.getenv("YOUTUBE_CLIENT_SECRET", "")
+    youtube_callback_url :str = os.getenv("YOUTUBE_CALLBACK_URL", "")
 @lru_cache
 def get_settings() -> Settings:
     """

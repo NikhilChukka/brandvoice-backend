@@ -18,6 +18,9 @@ class User(SQLModel, table=True):
     instagram_business_account_id: str | None = None
     fb_page_id: str | None = None
     fb_page_access_token: str | None = None
+    youtube_access_token : str | None = None
+    youtube_channel_id: str | None = None
+    youtube_refresh_token: str | None = None
 
 # Pydantic response & request schemas
 class UserCreate(SQLModel):
