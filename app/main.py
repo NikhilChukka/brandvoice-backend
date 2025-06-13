@@ -33,7 +33,8 @@ jobstores = {
     "default": SQLAlchemyJobStore(url="sqlite:///./app.db")  # <-- sync URL
 }
 scheduler = AsyncIOScheduler(jobstores=jobstores)
-scheduler.start()
+# Do NOT call scheduler.start() here!
+
 settings = get_settings()
 engine: AsyncEngine = create_async_engine(
     settings.database_url,      # e.g. "sqlite+aiosqlite:///./app.db"
@@ -87,7 +88,10 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def on_startup():
-    # Establish a transaction and run the sync create_all() call
+        # Start the scheduler here, after the event loop is available
+        if not scheduler.running:
+            scheduler.start()
+        # Establish a transaction and run the sync create_all() call
         async with engine.begin() as conn:
             # This runs: SQLModel.metadata.create_all(engine)
             await conn.run_sync(SQLModel.metadata.create_all)
