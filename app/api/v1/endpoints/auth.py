@@ -67,15 +67,15 @@ async def refresh(token: str = Depends(oauth2_scheme)):
     new_refresh = create_refresh_token(payload["sub"])
     return Token(access_token=new_access, refresh_token=new_refresh)
 
-# ───────────────────────── who-am-I
-@router.get("/me", response_model=UserRead)
-async def me(current: User = Depends(current_user)):
-    return current
+# # ───────────────────────── who-am-I
+# @router.get("/me", response_model=UserRead)
+# async def me(current: User = Depends(current_user)):
+#     return current
 
-# ───────────────────────── sample protected
-@router.get("/demo-protected")
-async def protected_route(current: User = Depends(current_user)):
-    return {"message": f"Hello {current.full_name or current.email}!"}
+
+# @router.get("/demo-protected")
+# async def protected_route(current: User = Depends(current_user)):
+#     return {"message": f"Hello {current.full_name or current.email}!"}
 
 
 @router.get("/user/{user_id}", response_model=UserRead, summary="Get a user’s public profile")
