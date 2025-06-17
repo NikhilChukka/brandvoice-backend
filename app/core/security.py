@@ -4,6 +4,11 @@ from typing import Any, Union
 from jose import jwt, JWTError                 # jose = python-jose :contentReference[oaicite:5]{index=5}
 from pydantic import BaseModel
 from app.core.config import get_settings
+from app.models.user import User
+from fastapi import Depends, HTTPException, status # Added HTTPException, status
+from fastapi.security import OAuth2PasswordBearer # Added OAuth2PasswordBearer
+from uuid import UUID # Added UUID
+from app.api.v1.dependencies import get_current_user
 
 _settings = get_settings()
 
@@ -14,59 +19,35 @@ ACCESS_TOKEN_EXPIRE_MINUTES = _settings.access_token_expire_minutes
 REFRESH_TOKEN_EXPIRE_DAYS = _settings.refresh_token_expire_days
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
-def get_password_hash(plain: str) -> str:
-    return pwd_context.hash(plain)
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
 
-def _create_token(subject: Union[str, Any], expires_delta: timedelta) -> str:
-    now = datetime.utcnow()
-    payload = {
-        "sub": str(subject),
-        "iat": now,
-        "exp": now + expires_delta,
-    }
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
-def create_access_token(subject: str) -> str:
-    return _create_token(subject, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-
-def create_refresh_token(subject: str) -> str:
-    return _create_token(subject, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
+def create_refresh_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
 class Token(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
 
-
-from app.models.user import User
-from fastapi import Depends, HTTPException, status # Added HTTPException, status
-from fastapi.security import OAuth2PasswordBearer # Added OAuth2PasswordBearer
-from uuid import UUID # Added UUID
-from sqlmodel import Session # Added import for Session type hint
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.v1.dependencies import db_session
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login") # Added for get_current_user
-
-# Moved from app.api.v1.endpoints.auth.py
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(db_session)
-) -> User:
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: UUID = UUID(payload.get("sub"))
-    except (JWTError, ValueError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    user = await db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return user
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 async def get_current_active_user(user: User = Depends(get_current_user)) -> User:
     if not user.is_active:
