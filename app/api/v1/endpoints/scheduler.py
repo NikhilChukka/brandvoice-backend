@@ -41,11 +41,12 @@ async def create_schedule(
     if user_id != str(current_user.id):
         raise HTTPException(403, "Not allowed to access this user's schedules")
     
-    content = await db.get("content", str(data.content_id))
-    if not content:
-        raise HTTPException(404, "Content item not found")
+    # content = await db.get("content", str(data.content_id))
+    # if not content:
+    #     raise HTTPException(404, "Content item not found")
     
     schedule_data = data.model_dump()
+    schedule_data["content_id"] = str(data.content_id) if data.content_id else None
     schedule_data["user_id"] = user_id
     schedule_data["status"] = ScheduleState.scheduled
     schedule_data["created_at"] = datetime.utcnow()
@@ -120,39 +121,39 @@ async def delete_schedule(
     
     await db.delete("schedules", schedule_id)
 
-@router.post("/schedule", status_code=status.HTTP_201_CREATED)
-async def schedule_post(
-    user_id: str,
-    platform: Platform = Form(...),
-    content: str = Form(...),
-    run_at: datetime = Form(...),
-    timezone: str = Form(...),
-    media: list[UploadFile] | None = File(None),
-    db: FirestoreSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Schedule a post for later publication."""
-    if user_id != str(current_user.id):
-        raise HTTPException(403, "Not allowed to access this user's schedules")
+# @router.post("/schedule", status_code=status.HTTP_201_CREATED)
+# async def schedule_post(
+#     user_id: str,
+#     platform: Platform = Form(...),
+#     content: str = Form(...),
+#     run_at: datetime = Form(...),
+#     timezone: str = Form(...),
+#     media: list[UploadFile] | None = File(None),
+#     db: FirestoreSession = Depends(get_db),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     """Schedule a post for later publication."""
+#     if user_id != str(current_user.id):
+#         raise HTTPException(403, "Not allowed to access this user's schedules")
     
-    paths = []
-    if media:
-        for file in media:
-            # Handle file upload and get path
-            paths.append(f"path/to/{file.filename}")
+#     paths = []
+#     if media:
+#         for file in media:
+#             # Handle file upload and get path
+#             paths.append(f"path/to/{file.filename}")
     
-    post_data = {
-        "user_id": user_id,
-        "platform": platform,
-        "content": content,
-        "run_at": run_at.isoformat(),
-        "timezone": timezone,
-        "media_paths": paths,
-        "status": ScheduleState.scheduled,
-        "created_at": datetime.utcnow(),
-        "modified_at": datetime.utcnow()
-    }
+#     post_data = {
+#         "user_id": user_id,
+#         "platform": platform,
+#         "content": content,
+#         "run_at": run_at.isoformat(),
+#         "timezone": timezone,
+#         "media_paths": paths,
+#         "status": ScheduleState.upcoming,
+#         "created_at": datetime.utcnow(),
+#         "modified_at": datetime.utcnow()
+#     }
     
-    doc_id = await db.add("scheduled_posts", post_data)
+#     doc_id = await db.add("scheduled_posts", post_data)
     
-    return {"id": doc_id, **post_data} 
+#     return {"id": doc_id, **post_data} 

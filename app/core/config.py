@@ -19,7 +19,7 @@ def clean_int_env(var_name: str, default: str) -> int:
 
 class Settings(BaseSettings):
     # ----- app -----
-    app_name: str = "BrandVoice API"
+    app_name: str = "BrandVoice External APIs"
     environment: str = "dev"
     debug: bool = False
 

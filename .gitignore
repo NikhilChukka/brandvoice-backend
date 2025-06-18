@@ -2,7 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
-service_account.json
+service_account*
 # C extensions
 *.so
 
@@ -162,3 +162,4 @@ cython_debug/
 .DS_Store
 docs/
 env
+service_account.json

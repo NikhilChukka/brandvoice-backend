@@ -60,7 +60,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=s.app_name,
         version="1.0.0",
-        description="Multi-agent content automation backend",
+        description="Multi-agent content automation backend, these are the external APIs for BrandVoice.",
         docs_url="/docs", redoc_url="/redoc",
         swagger_ui_init_oauth={
             "usePkceWithAuthorizationCodeGrant": True,
