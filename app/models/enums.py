@@ -3,10 +3,11 @@ from enum import Enum
 
 class Platform(str, Enum):
     instagram = "instagram"
-    linkedin  = "linkedin"
     x         = "x"
+    facebook  = "facebook"
+    youtube   = "youtube"
 
 class ScheduleState(str, Enum):
-    scheduled = "scheduled"
-    completed = "completed"
-    cancelled = "cancelled"
+    upcoming = "upcoming"
+    published = "published"
+    failed = "failed"

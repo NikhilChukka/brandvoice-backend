@@ -1,18 +1,23 @@
-from sqlmodel import SQLModel, Field
-from uuid import UUID, uuid4
+from pydantic import BaseModel, Field
+from typing import Optional
 from datetime import datetime
 
-class ContentItem(SQLModel, table=True):
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    user_id: UUID = Field(foreign_key="user.id") # Added user_id
-    product_id: UUID = Field(foreign_key="product.id")                  # FK to Product
+class Content(BaseModel):
+    id: str
+    user_id: str
+    product_id: str
     body_text: str
-    image_url: str | None = None
+    image_url: Optional[str] = None
     state: str = "draft"
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    modified_at: datetime = Field(default_factory=datetime.utcnow, nullable=True)
+    modified_at: datetime = Field(default_factory=datetime.utcnow)
 
-class ContentCreate(SQLModel):
-    product_id: UUID
+class ContentCreate(BaseModel):
+    product_id: str
     body_text: str
-    image_url: str | None = None
+    image_url: Optional[str] = None
+
+class ContentUpdate(BaseModel):
+    body_text: Optional[str] = None
+    image_url: Optional[str] = None
+    state: Optional[str] = None
