@@ -2,10 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
-service_account*
+service_account.json
 # C extensions
 *.so
-
+env.yaml
 # Distribution / packaging
 .Python
 build/
