@@ -20,7 +20,7 @@ def get_client_for_user(
         access_token_secret=user_token_secret,
     )
 
-def post_tweet_for_user(
+async def post_tweet_for_user(
     access_token: str,
     access_token_secret: str,
     text: str,

@@ -120,14 +120,11 @@ class FirestoreSession:
         doc_ref.delete()
 
     def _serialize_datetime(self, data: dict) -> dict:
-        """Convert datetime objects to strings in a dictionary."""
-        serialized = {}
-        for key, value in data.items():
-            if isinstance(value, datetime):
-                serialized[key] = value.isoformat()
-            else:
-                serialized[key] = value
-        return serialized
+        """Pass through datetime objects for Firestore Timestamp conversion."""
+        # The Firestore client library automatically converts timezone-aware
+        # Python datetime objects to Firestore Timestamp objects.
+        # We just need to ensure they are not converted to strings first.
+        return data
 
 # Collection access functions
 def get_users_collection():

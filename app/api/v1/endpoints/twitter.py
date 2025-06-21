@@ -165,7 +165,7 @@ async def post_to_twitter(
             media_paths.append(path)
 
     try:
-        tweet_id = post_tweet_for_user(
+        tweet_id = await post_tweet_for_user(
             credential["access_token"],
             credential["access_token_secret"],
             text,

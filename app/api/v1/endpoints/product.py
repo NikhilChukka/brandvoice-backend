@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
-from app.models.product import Product, ProductCreate, ProductUpdate
-from app.models.user import User
-from app.core.db_dependencies import get_db
-from app.models.firestore_db import FirestoreSession
-from app.api.v1.dependencies import get_current_user
-from uuid import UUID
+# from fastapi import APIRouter, Depends, HTTPException, status
+# from typing import List
+# from app.models.product import Product, ProductCreate, ProductUpdate
+# from app.models.user import User
+# from app.core.db_dependencies import get_db
+# from app.models.firestore_db import FirestoreSession
+# from app.api.v1.dependencies import get_current_user
+# from uuid import UUID
 
-router = APIRouter(prefix="/products", tags=["products"])
+# router = APIRouter(prefix="/products", tags=["products"])
 
 # @router.post("/", response_model=Product)
 # async def create_product(

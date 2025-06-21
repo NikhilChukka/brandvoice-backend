@@ -7,7 +7,7 @@ router = APIRouter()
 router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
 # Product routes
-router.include_router(product.router, prefix="/products", tags=["Products"])
+# router.include_router(product.router, prefix="/products", tags=["Products"])
 
 # Content routes
 router.include_router(content.router, prefix="/content", tags=["Content"])
