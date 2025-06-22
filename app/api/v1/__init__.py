@@ -10,7 +10,7 @@ router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 # router.include_router(product.router, prefix="/products", tags=["Products"])
 
 # Content routes
-router.include_router(content.router, prefix="/content", tags=["Content"])
+# router.include_router(content.router, prefix="/content", tags=["Content"])
 
 # Scheduler routes
 router.include_router(scheduler.router, prefix="/scheduler", tags=["Scheduler"])
