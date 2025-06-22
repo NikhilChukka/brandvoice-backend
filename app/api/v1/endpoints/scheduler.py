@@ -1,132 +1,120 @@
-# app/api/v1/endpoints/schedule.py
+from datetime import datetime, timezone
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
 from uuid import UUID
-from app.api.v1.dependencies import db_session, current_user
+
+from app.api.v1.dependencies import get_current_user
+from app.core.db_dependencies import get_db
+from app.models.enums import ScheduleState
+from app.models.firestore_db import FirestoreSession
 from app.models.schedule import Schedule, ScheduleCreate, ScheduleUpdate
 from app.models.user import User
-from app.models.content import ContentItem
-from fastapi import Response
-from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
-from datetime import datetime
-import json
-import uuid
-from app.models.user import User
-from app.models.scheduling import ScheduledPost
-from starlette.status import HTTP_201_CREATED
-from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/users/{user_id}/schedules", tags=["Scheduler"])
+router = APIRouter()
 
-# ───────────────────────── helpers
-async def _own_or_404(session: AsyncSession, sid: UUID, user_id: UUID) -> Schedule:
-    sched = await session.get(Schedule, sid)
-    if not sched or sched.user_id != user_id:
-        raise HTTPException(404, "Schedule not found")
-    return sched
 
-# ───────────────────────── CRUD
-@router.get("/", response_model=dict)
+# ────────────────────────────────────────────────────────────────────
+# helpers
+# ────────────────────────────────────────────────────────────────────
+def _assert_owner(user_id: str, current_user: User):
+    if user_id != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not allowed to access this user's schedules",
+        )
+
+
+# ────────────────────────────────────────────────────────────────────
+# routes
+# ────────────────────────────────────────────────────────────────────
+@router.get("/", response_model=List[Schedule])
 async def list_schedules(
-    user_id: UUID,
-    session: AsyncSession = Depends(db_session),
-    current: User = Depends(current_user)
-) -> dict[str, Any]:
-    if user_id != current.id:
-        raise HTTPException(403, "Not allowed to access this user's schedules")
-    stmt = select(Schedule).where(Schedule.user_id == user_id)
-    result = await session.execute(stmt)
-    schedules = result.scalars().all()
-    return {"count": len(schedules), "results": schedules}
+    user_id: str,
+    db: FirestoreSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _assert_owner(user_id, current_user)
+    return await db.query("schedules", filters=[("user_id", "==", user_id)])
+
 
 @router.post("/", response_model=Schedule, status_code=status.HTTP_201_CREATED)
 async def create_schedule(
-    user_id: UUID,
+    user_id: str,
     data: ScheduleCreate,
-    session: AsyncSession = Depends(db_session),
-    current: User = Depends(current_user)
+    db: FirestoreSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    if user_id != current.id:
-        raise HTTPException(403, "Not allowed to access this user's schedules")
-    if not await session.get(ContentItem, data.content_id):
-        raise HTTPException(404, "Content item not found")
-    sched = Schedule.model_validate(data, update={"user_id": user_id})
-    session.add(sched)
-    await session.commit()
-    await session.refresh(sched)
-    # TODO: enqueue APScheduler/Celery job here
-    return sched
+    _assert_owner(user_id, current_user)
 
-@router.get("/{sid}", response_model=Schedule)
+    schedule_data = data.model_dump()
+    schedule_data["product_id"] = str(data.product_id) if data.product_id else None
+    schedule_data["user_id"] = user_id
+    schedule_data["status"] = ScheduleState.upcoming
+    schedule_data["created_at"] = datetime.utcnow()
+    schedule_data["modified_at"] = datetime.utcnow()
+
+    # data.run_at is already tz-aware UTC thanks to the validator
+    schedule_data["run_at"] = data.run_at
+
+    doc_id = await db.add("schedules", schedule_data)
+    return {**schedule_data, "id": doc_id}
+
+
+@router.get("/{schedule_id}", response_model=Schedule)
 async def get_schedule(
-    user_id: UUID, sid: UUID,
-    session: AsyncSession = Depends(db_session),
-    current: User = Depends(current_user)
+    user_id: str,
+    schedule_id: str,
+    db: FirestoreSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    if user_id != current.id:
-        raise HTTPException(403, "Not allowed to access this user's schedules")
-    return await _own_or_404(session, sid, user_id)
+    _assert_owner(user_id, current_user)
 
-@router.put("/{sid}", response_model=Schedule)
+    schedule = await db.get("schedules", schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    if schedule["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return schedule
+
+
+@router.put("/{schedule_id}", response_model=Schedule)
 async def update_schedule(
-    user_id: UUID, sid: UUID,
+    user_id: str,
+    schedule_id: str,
     data: ScheduleUpdate,
-    session: AsyncSession = Depends(db_session),
-    current: User = Depends(current_user)
+    db: FirestoreSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    if user_id != current.id:
-        raise HTTPException(403, "Not allowed to access this user's schedules")
-    sched = await _own_or_404(session, sid, user_id)
-    for k, v in data.model_dump(exclude_unset=True).items():
-        setattr(sched, k, v)
-    session.add(sched)
-    await session.commit()
-    await session.refresh(sched)
-    return sched
+    _assert_owner(user_id, current_user)
 
-@router.delete("/{sid}", status_code=204)
+    schedule = await db.get("schedules", schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    if schedule["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    update_data = data.model_dump(exclude_unset=True)
+    update_data["modified_at"] = datetime.utcnow()
+    if "run_at" in update_data:
+        # validator already UTC-normalised
+        update_data["run_at"] = update_data["run_at"]
+    await db.update("schedules", schedule_id, update_data)
+    return await db.get("schedules", schedule_id)
+
+
+@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_schedule(
-    user_id: UUID, sid: UUID,
-    session: AsyncSession = Depends(db_session),
-    current: User = Depends(current_user)
+    user_id: str,
+    schedule_id: str,
+    db: FirestoreSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    if user_id != current.id:
-        raise HTTPException(403, "Forbidden")
-    sched = await _own_or_404(session, sid, user_id)
-    await session.delete(sched)
-    await session.commit()
+    _assert_owner(user_id, current_user)
 
-@router.post("/schedule", status_code=HTTP_201_CREATED)
-async def schedule_tweet(
-    text: str = Form(...),
-    run_at: datetime = Form(...),  # ISO8601 datetime string
-    media: list[UploadFile] | None = File(None),
-    session: AsyncSession = Depends(db_session),
-    user = Depends(current_user)
-):
-    paths = []
-    if media:
-        for file in media:
-            filename = f"/tmp/{uuid.uuid4().hex}_{file.filename}"
-            with open(filename, "wb") as f:
-                f.write(file.file.read())
-            paths.append(filename)
-    post = ScheduledPost(
-        user_id=user.id,
-        text=text,
-        media_paths=json.dumps(paths) if paths else None,
-        run_at=run_at,
-    )
-    session.add(post)
-    await session.commit()
-    await session.refresh(post)
-    from app.main import scheduler, dispatch_scheduled_tweet
-    scheduler.add_job(
-        func=dispatch_scheduled_tweet,
-        trigger="date",
-        run_date=run_at,
-        args=[post.id],
-        id=str(post.id),
-    )
-    return {"status": "scheduled", "post_id": post.id}
+    schedule = await db.get("schedules", schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    if schedule["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    await db.delete("schedules", schedule_id)

@@ -1,101 +1,129 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer 
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
-from uuid import UUID
-from ..dependencies import db_session, current_user  # Use db_session, not get_session
-from app.core.security import (
-    verify_password, get_password_hash,
-    create_access_token, create_refresh_token,
-    Token,
-    get_current_active_user  # Added direct import for clarity in this file if preferred
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
+from app.models.user import User, UserCreate, UserInDB, UserUpdate
+from app.services.user_service import UserService
+from app.api.v1.dependencies import get_user_service, get_current_user
+from app.models.firestore_db import (
+    create_firebase_user,
+    verify_firebase_token,
+    get_firebase_user,
+    sign_in_with_email_password
 )
-from app.models.user import User, UserCreate, UserRead
-from jose import jwt, JWTError
-from app.core.config import get_settings
+from app.core.db_dependencies import db_session
+from typing import Dict
 
-_settings = get_settings()
-SECRET_KEY = _settings.secret_key
-ALGORITHM = _settings.algorithm
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 
+security = HTTPBearer()
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+@router.post("/register", response_model=Dict[str, str])
+async def register(
+    user_in: UserCreate,
+    user_service: UserService = Depends(get_user_service)
+):
+    """
+    Register a new user with Firebase Authentication.
+    """
+    # Check if user already exists
+    existing_user = await user_service.get_user_by_email(user_in.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login") 
+    # Create user in Firebase Auth
+    firebase_uid = await create_firebase_user(user_in.email, user_in.password)
+    
+    # Create user in Firestore
+    user_data = user_in.model_dump()
+    user_data["firebase_uid"] = firebase_uid
+    user_id = await user_service.create_user(user_data)
+    
+    return {"message": "User registered successfully", "user_id": user_id}
 
-# ───────────────────────── register
-@router.post("/register", response_model=UserRead, status_code=201)
-async def register(data: UserCreate, db: AsyncSession = Depends(db_session)):
-    user = User(
-        email=data.email.lower(),
-        full_name=data.full_name,
-        hashed_password=get_password_hash(data.password)
-    )
-    db.add(user)
-    try:
-        await db.commit()
-        await db.refresh(user)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail="Email already registered")
-    return user
-
-# ───────────────────────── login
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Dict[str, str])
 async def login(
-    form: OAuth2PasswordRequestForm = Depends(), 
-    db: AsyncSession = Depends(db_session)
-):
-    stmt = select(User).where(User.email == form.username.lower())
-    result = await db.execute(stmt)
-    user = result.scalars().first()
-    if not user or not verify_password(form.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Incorrect credentials")
-    access = create_access_token(str(user.id))
-    refresh = create_refresh_token(str(user.id))
-    return Token(access_token=access, refresh_token=refresh)
-
-# ───────────────────────── refresh
-@router.post("/refresh", response_model=Token)
-async def refresh(token: str = Depends(oauth2_scheme)):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
-    new_access = create_access_token(payload["sub"])
-    new_refresh = create_refresh_token(payload["sub"])
-    return Token(access_token=new_access, refresh_token=new_refresh)
-
-# # ───────────────────────── who-am-I
-# @router.get("/me", response_model=UserRead)
-# async def me(current: User = Depends(current_user)):
-#     return current
-
-
-# @router.get("/demo-protected")
-# async def protected_route(current: User = Depends(current_user)):
-#     return {"message": f"Hello {current.full_name or current.email}!"}
-
-
-@router.get("/user/{user_id}", response_model=UserRead, summary="Get a user’s public profile")
-async def get_user_details(
-    user_id: UUID,
-    current: User = Depends(current_user),   # <- Use current_user from dependencies
-    db: AsyncSession = Depends(db_session),                 # <- DB session
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    user_service: UserService = Depends(get_user_service)
 ):
     """
-    Fetch a single user's profile.
-
-    • Ordinary users may call this on **their own** ID  
-    • Admin users (`is_admin=True`) may fetch anyone
+    Login with Firebase Authentication.
     """
-    # ---- optional ACL check --------------------------------------------
-    if user_id != current.id and not getattr(current, "is_admin", False):
-        raise HTTPException(status_code=403, detail="Not authorised")
-
-    user = await db.get(User, user_id)
+    # Get user from Firestore
+    user = await user_service.get_user_by_email(form_data.username)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Sign in with Firebase
+    tokens = await sign_in_with_email_password(form_data.username, form_data.password)
+    
+    return {
+        "access_token": tokens["id_token"],
+        "refresh_token": tokens["refresh_token"],
+        "token_type": "bearer",
+        "user_id": str(user.id)
+    }
 
-    return user
+@router.get("/me", response_model=User)
+async def get_current_user_info(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current user information.
+    """
+    return current_user
+
+@router.put("/me", response_model=User)
+async def update_current_user_info(
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+):
+    """
+    Update current user information. Email cannot be updated.
+    """
+    # Update user
+    update_data = user_update.model_dump(exclude_unset=True)
+    
+    # Ensure email and firebase_uid cannot be updated
+    if "email" in update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email cannot be updated"
+        )
+    if "firebase_uid" in update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Firebase UID cannot be updated"
+        )
+    
+    await user_service.update_user(current_user.id, update_data)
+    
+    # Get updated user
+    if not current_user.firebase_uid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User has no Firebase UID"
+        )
+    updated_user = await user_service.get_user_by_firebase_uid(current_user.firebase_uid)
+    return updated_user
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_current_user(
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service)
+):
+    """
+    Delete current user account.
+    """
+    success = await user_service.delete_user(str(current_user.id))
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )

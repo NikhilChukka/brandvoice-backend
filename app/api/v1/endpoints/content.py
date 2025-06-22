@@ -1,80 +1,86 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
-from uuid import UUID
-from app.api.v1.dependencies import db_session, current_user
-from app.models.content import ContentItem, ContentCreate
+from typing import List
+from app.models.content import Content, ContentCreate, ContentUpdate
 from app.models.user import User
-from app.models.product import Product
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.db_dependencies import get_db
+from app.models.firestore_db import FirestoreSession
+from app.api.v1.dependencies import get_current_user
 
-router = APIRouter(prefix="/content", tags=["Content"])
+router = APIRouter()
 
-@router.post("/", response_model=ContentItem, status_code=status.HTTP_201_CREATED)
-async def save_content(data: ContentCreate, session: AsyncSession = Depends(db_session), current: User = Depends(current_user)):
-    product = await session.get(Product, data.product_id)
-    if not product:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Product with id {data.product_id} not found."
-        )
-    if product.user_id != current.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User does not have access to this product."
-        )
-    item = ContentItem.model_validate(data, update={"user_id": current.id})
-    session.add(item)
-    await session.commit()
-    await session.refresh(item)
-    return item
+# @router.post("/", response_model=Content)
+# async def create_content(
+#     content: ContentCreate,
+#     db: FirestoreSession = Depends(get_db),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     """Create a new content item."""
+#     content_data = content.model_dump()
+#     content_data["user_id"] = str(current_user.id)
+#     doc_id = await db.add("content", content_data)
+#     return {**content_data, "id": doc_id}
 
-@router.get("/", response_model=list[ContentItem])
-async def list_content(session: AsyncSession = Depends(db_session), current: User = Depends(current_user)):
-    result = await session.execute(select(ContentItem).where(ContentItem.user_id == current.id))
-    return result.scalars().all()
+# @router.get("/", response_model=List[Content])
+# async def list_content(
+#     db: FirestoreSession = Depends(get_db),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     """List all content items for the current user."""
+#     content_items = await db.query(
+#         "content",
+#         filters=[("user_id", "==", str(current_user.id))]
+#     )
+#     return content_items
 
-@router.get("/{cid}", response_model=ContentItem)
-async def get_content(cid: UUID, session: AsyncSession = Depends(db_session), current: User = Depends(current_user)):
-    item = await session.get(ContentItem, cid)
-    if not item or item.user_id != current.id:
-        raise HTTPException(404, "Content not found")
-    return item
+# @router.get("/{content_id}", response_model=Content)
+# async def get_content(
+#     content_id: str,
+#     db: FirestoreSession = Depends(get_db),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     """Get a specific content item."""
+#     content = await db.get("content", content_id)
+#     if not content:
+#         raise HTTPException(status_code=404, detail="Content not found")
+#     
+#     if content["user_id"] != str(current_user.id):
+#         raise HTTPException(status_code=403, detail="Not authorized to access this content")
+#     
+#     return content
 
-@router.put("/{cid}", response_model=ContentItem)
-async def update_content(
-    cid: UUID,
-    data: ContentCreate,
-    session: AsyncSession = Depends(db_session),
-    current: User = Depends(current_user),
-):
-    item = await session.get(ContentItem, cid)
-    if not item or item.user_id != current.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Content not found")
-    update_data = data.model_dump(exclude_unset=True)
-    if "product_id" in update_data:
-        product = await session.get(Product, update_data["product_id"])
-        if not product:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Product with id {update_data['product_id']} not found."
-            )
-        if product.user_id != current.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User does not have access to this product."
-            )
-    for key, value in update_data.items():
-        setattr(item, key, value)
-    session.add(item)
-    await session.commit()
-    await session.refresh(item)
-    return item
+# @router.put("/{content_id}", response_model=Content)
+# async def update_content(
+#     content_id: str,
+#     content: ContentUpdate,
+#     db: FirestoreSession = Depends(get_db),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     """Update a content item."""
+#     existing_content = await db.get("content", content_id)
+#     if not existing_content:
+#         raise HTTPException(status_code=404, detail="Content not found")
+#     
+#     if existing_content["user_id"] != str(current_user.id):
+#         raise HTTPException(status_code=403, detail="Not authorized to update this content")
+#     
+#     update_data = content.model_dump(exclude_unset=True)
+#     await db.update("content", content_id, update_data)
+#     
+#     updated_content = await db.get("content", content_id)
+#     return updated_content
 
-@router.delete("/{cid}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_content(cid: UUID, session: AsyncSession = Depends(db_session), current: User = Depends(current_user)):
-    item = await session.get(ContentItem, cid)
-    if not item or item.user_id != current.id:
-        raise HTTPException(404, "Content not found")
-    await session.delete(item)
-    await session.commit()
-    return None
+# @router.delete("/{content_id}", status_code=status.HTTP_204_NO_CONTENT)
+# async def delete_content(
+#     content_id: str,
+#     db: FirestoreSession = Depends(get_db),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     """Delete a content item."""
+#     existing_content = await db.get("content", content_id)
+#     if not existing_content:
+#         raise HTTPException(status_code=404, detail="Content not found")
+#     
+#     if existing_content["user_id"] != str(current_user.id):
+#         raise HTTPException(status_code=403, detail="Not authorized to delete this content")
+#     
+#     await db.delete("content", content_id)
