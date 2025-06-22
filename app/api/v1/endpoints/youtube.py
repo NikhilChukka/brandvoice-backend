@@ -3,7 +3,7 @@ from typing import List
 from app.core.config import get_settings
 from app.models.user import User
 from app.core.db_dependencies import get_db
-from app.api.v1.dependencies import get_current_user
+from app.api.v1.dependencies import get_firebase_user
 from app.models.firestore_db import FirestoreSession
 from app.models.youtube import YouTubeCredential, YouTubeCredentialCreate, YouTubeCredentialUpdate
 import httpx
@@ -11,12 +11,14 @@ from starlette.responses import RedirectResponse
 import os
 from datetime import datetime, timedelta
 import json
+from app.services.user_service_new import UserService
+from app.core.db_dependencies import db_session
 
 router = APIRouter()
 settings = get_settings()
 
 @router.get("/connect")
-async def youtube_connect(request: Request, user: User = Depends(get_current_user)):
+async def youtube_connect(request: Request, user: User = Depends(get_firebase_user)):
     params = {
         "client_id": settings.youtube_client_id,
         "redirect_uri": settings.youtube_callback_url,
@@ -32,12 +34,18 @@ async def youtube_connect(request: Request, user: User = Depends(get_current_use
 @router.get("/callback")
 async def youtube_callback(
     code: str,
-    state: str,
-    db: FirestoreSession = Depends(get_db)
+    state: str, # This is the firebase UID
+    db: FirestoreSession = Depends(db_session)
 ):
     """
     Handle the OAuth2 callback from YouTube.
     """
+    # Get user from firebase
+    user_service = UserService()
+    user = await user_service.get_user_by_firebase_uid(state)
+    if not user:
+        raise HTTPException(404, "User not found")
+
     try:
         # Exchange code for tokens
         async with httpx.AsyncClient() as client:
@@ -62,7 +70,7 @@ async def youtube_callback(
             
             # Create credential in database
             credential_data = {
-                "user_id": state,  # state parameter contains user ID
+                "user_id": user.id,  # state parameter contains user ID
                 "access_token": token_data["access_token"],
                 "refresh_token": token_data["refresh_token"],
                 "token_type": token_data["token_type"],
@@ -75,7 +83,7 @@ async def youtube_callback(
             # Check if user already has credentials
             existing_credentials = await db.query(
                 "youtube_credentials",
-                filters=[("user_id", "==", state)]
+                filters=[("user_id", "==", user.id)]
             )
             
             if existing_credentials:
@@ -99,7 +107,7 @@ async def youtube_upload(
     title: str = Form(...),
     description: str = Form(""),
     file: UploadFile = File(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(get_db)
 ):
     path = f"/tmp/{file.filename}"
@@ -188,7 +196,7 @@ async def youtube_upload(
 # async def create_youtube_credential(
 #     credential: YouTubeCredentialCreate,
 #     db: FirestoreSession = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
+#     current_user: User = Depends(get_firebase_user)
 # ):
 #     """Create a new YouTube credential."""
 #     credential_data = credential.model_dump()
@@ -201,7 +209,7 @@ async def youtube_upload(
 # @router.get("/", response_model=List[YouTubeCredential])
 # async def list_youtube_credentials(
 #     db: FirestoreSession = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
+#     current_user: User = Depends(get_firebase_user)
 # ):
 #     """List all YouTube credentials for the current user."""
 #     credentials = await db.query(
@@ -214,7 +222,7 @@ async def youtube_upload(
 # async def get_youtube_credential(
 #     credential_id: str,
 #     db: FirestoreSession = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
+#     current_user: User = Depends(get_firebase_user)
 # ):
 #     """Get a specific YouTube credential."""
 #     credential = await db.get("youtube_credentials", credential_id)
@@ -231,7 +239,7 @@ async def youtube_upload(
 #     credential_id: str,
 #     credential: YouTubeCredentialUpdate,
 #     db: FirestoreSession = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
+#     current_user: User = Depends(get_firebase_user)
 # ):
 #     """Update a YouTube credential."""
 #     existing_credential = await db.get("youtube_credentials", credential_id)
@@ -252,7 +260,7 @@ async def youtube_upload(
 # async def delete_youtube_credential(
 #     credential_id: str,
 #     db: FirestoreSession = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
+#     current_user: User = Depends(get_firebase_user)
 # ):
 #     """Delete a YouTube credential."""
 #     existing_credential = await db.get("youtube_credentials", credential_id)

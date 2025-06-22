@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Form, UploadFile
 from starlette.responses import RedirectResponse
 from app.models import User
 from app.core.db_dependencies import db_session
-from app.api.v1.dependencies import get_current_user
+from app.api.v1.dependencies import get_firebase_user
 from app.services import facebook_service as fb
 from app.services.facebook_service import post_video
 from app.models.firestore_db import FirestoreSession
+from app.services.user_service_new import UserService
 import httpx
 from app.core.config import get_settings
 from typing import List
@@ -19,7 +20,7 @@ router = APIRouter(tags=["Facebook"])
 # ---------- OAuth connect ---------- #
 @router.get("/connect")
 async def fb_connect(
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     """Start Facebook OAuth flow"""
@@ -71,8 +72,9 @@ async def fb_callback(
     # Get user ID from state
     user_id = state
     
-    # Get user from database
-    user = await db.get("users", user_id)
+    # Get user from firebase
+    user_service = UserService()
+    user = await user_service.get_user_by_firebase_uid(user_id)
     if not user:
         raise HTTPException(404, "User not found")
     
@@ -199,7 +201,7 @@ async def fb_callback(
 async def post_message(
     message: str = Form(...),
     file: UploadFile = File(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     # Get user's Facebook credentials
@@ -264,7 +266,7 @@ async def fb_photo(
     image_url: str = Form(...),
     message: str | None = Form(None),
     credential_id: str | None = Form(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     """Post a photo to Facebook"""
@@ -301,7 +303,7 @@ async def fb_video(
     title: str = Form(...),
     description: str | None = Form(None),
     credential_id: str | None = Form(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     """Post a video to Facebook"""
@@ -362,7 +364,7 @@ async def fb_video(
 async def video_status(
     video_id: str,
     credential_id: str | None = None,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     """Check the status of a video upload"""
@@ -429,7 +431,7 @@ async def video_status(
 # async def post_video_feed(
 #     video_url: str = Form(...),
 #     message: str | None = Form(None),
-#     user: User = Depends(get_current_user),
+#     user: User = Depends(get_firebase_user),
 # ):
 #     if not user.fb_page_id or not user.fb_page_access_token:
 #         raise HTTPException(400, "Facebook not connected")
@@ -448,7 +450,7 @@ async def video_status(
 # async def create_facebook_credential(
 #     credential: FacebookCredentialCreate,
 #     db: FirestoreSession = Depends(db_session),
-#     current_user: User = Depends(get_current_user)
+#     current_user: User = Depends(get_firebase_user)
 # ):
 #     """Create a new Facebook credential."""
 #     credential_data = credential.model_dump()
@@ -460,7 +462,7 @@ async def video_status(
 
 @router.get("/credentials")
 async def list_facebook_credentials(
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     """List all Facebook credentials for the user"""
@@ -473,7 +475,7 @@ async def list_facebook_credentials(
 @router.get("/credentials/{credential_id}")
 async def get_facebook_credential(
     credential_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     """Get a specific Facebook credential"""
@@ -487,7 +489,7 @@ async def update_facebook_credential(
     credential_id: str,
     credential: FacebookCredentialUpdate,
     db: FirestoreSession = Depends(db_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_firebase_user)
 ):
     """Update a Facebook credential."""
     existing_credential = await db.get("facebook_credentials", credential_id)
@@ -507,7 +509,7 @@ async def update_facebook_credential(
 @router.delete("/credentials/{credential_id}")
 async def delete_facebook_credential(
     credential_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     """Delete a Facebook credential"""

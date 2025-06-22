@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Form, UploadFile
 from starlette.responses import RedirectResponse
 from app.models.user import User
 from app.core.db_dependencies import db_session
-from app.api.v1.dependencies import get_current_user
+from app.api.v1.dependencies import get_firebase_user
 from app.models.firestore_db import FirestoreSession
 from app.services.twitter_service import post_tweet_for_user
 from app.models.twitter import TwitterCredential
@@ -18,7 +18,7 @@ settings = get_settings()
 @router.get("/connect")
 async def twitter_connect(
     request: Request,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     auth = tweepy.OAuth1UserHandler(
@@ -36,7 +36,7 @@ async def twitter_connect(
 @router.get("/callback")
 async def twitter_callback(
     request: Request,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     request_token = request.session.pop("request_token", None)
@@ -81,7 +81,7 @@ async def twitter_callback(
 
 @router.get("/credentials", response_model=List[TwitterCredential])
 async def list_twitter_credentials(
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     """List all Twitter credentials for the user"""
@@ -94,7 +94,7 @@ async def list_twitter_credentials(
 @router.get("/credentials/{credential_id}", response_model=TwitterCredential)
 async def get_twitter_credential(
     credential_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     credential = await db.get("twitter_credentials", credential_id)
@@ -107,7 +107,7 @@ async def update_twitter_credential(
     credential_id: str,
     credential: TwitterCredential,
     db: FirestoreSession = Depends(db_session),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_firebase_user)
 ):
     existing_credential = await db.get("twitter_credentials", credential_id)
     if not existing_credential:
@@ -123,7 +123,7 @@ async def update_twitter_credential(
 @router.delete("/credentials/{credential_id}")
 async def delete_twitter_credential(
     credential_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     credential = await db.get("twitter_credentials", credential_id)
@@ -137,7 +137,7 @@ async def post_to_twitter(
     text: str = Form(...),
     media: Optional[List[UploadFile]] = File(None),
     credential_id: Optional[str] = Form(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(db_session)
 ):
     # Get the credential

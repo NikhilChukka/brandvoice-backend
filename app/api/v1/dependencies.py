@@ -1,42 +1,36 @@
-from fastapi import Depends, HTTPException, status, Security
+from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from firebase_admin import auth
 from app.models.user import User
-from app.services.user_service import UserService
-from app.models.firestore_db import verify_firebase_token, FirestoreSession
-from app.core.db_dependencies import db_session
+from app.services.user_service_new import UserService
+from fastapi import status
+from app.core.firebase import initialize_firebase  # Add this import
 
 security = HTTPBearer()
 
-async def get_user_service(db: FirestoreSession = Depends(db_session)) -> UserService:
-    """
-    Get a UserService instance.
-    """
-    if not isinstance(db, FirestoreSession):
-        raise ValueError("Invalid database session type")
-    return UserService(db)
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Security(security),
-    user_service: UserService = Depends(get_user_service)
+async def get_firebase_user(
+    credentials: HTTPAuthorizationCredentials = Security(security)
 ) -> User:
     """
-    Get the current user from the token.
+    Get the current user from the Firebase token only (no Firestore).
     """
     try:
-        # Verify Firebase token
-        decoded_token = await verify_firebase_token(credentials.credentials)
-        
-        # Get user from Firestore using Firebase UID
-        user = await user_service.get_user_by_firebase_uid(decoded_token["uid"])
+        initialize_firebase()  # Ensure Firebase Admin SDK is initialized
+        print(f"***Received Firebase token: {credentials.credentials}***")
+        decoded_token = auth.verify_id_token(credentials.credentials)
+        firebase_uid = decoded_token["uid"]
+        print(f"***Decoded Firebase UID: {firebase_uid}***")
+        user_service = UserService()
+        user = await user_service.get_user_by_firebase_uid(firebase_uid)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                detail="User not found in Firebase Auth"
             )
-        
         return user
     except Exception as e:
+        print(f"***Error verifying Firebase token: {e}***")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e)
+            detail="Invalid Firebase token"
         )

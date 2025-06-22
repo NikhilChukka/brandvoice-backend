@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from uuid import UUID
 
-from app.api.v1.dependencies import get_current_user
+from app.api.v1.dependencies import get_firebase_user
 from app.core.db_dependencies import get_db
 from app.models.enums import ScheduleState
 from app.models.firestore_db import FirestoreSession
@@ -32,7 +32,7 @@ def _assert_owner(user_id: str, current_user: User):
 async def list_schedules(
     user_id: str,
     db: FirestoreSession = Depends(get_db),
-    # current_user: User = Depends(get_current_user),
+    # current_user: User = Depends(get_firebase_user),
 ):
     # _assert_owner(user_id, current_user)
     return await db.query("schedules", filters=[("user_id", "==", user_id)])
@@ -43,7 +43,7 @@ async def create_schedule(
     user_id: str,
     data: ScheduleCreate,
     db: FirestoreSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_firebase_user),
 ):
     _assert_owner(user_id, current_user)
 
@@ -66,7 +66,7 @@ async def get_schedule(
     user_id: str,
     schedule_id: str,
     db: FirestoreSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_firebase_user),
 ):
     _assert_owner(user_id, current_user)
 
@@ -84,7 +84,7 @@ async def update_schedule(
     schedule_id: str,
     data: ScheduleUpdate,
     db: FirestoreSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_firebase_user),
 ):
     _assert_owner(user_id, current_user)
 
@@ -108,7 +108,7 @@ async def delete_schedule(
     user_id: str,
     schedule_id: str,
     db: FirestoreSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_firebase_user),
 ):
     _assert_owner(user_id, current_user)
 

@@ -2,76 +2,68 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
 from app.models.user import User, UserCreate, UserInDB, UserUpdate
 from app.services.user_service import UserService
-from app.api.v1.dependencies import get_user_service, get_current_user
+from app.api.v1.dependencies import get_firebase_user
 from app.models.firestore_db import (
     create_firebase_user,
     verify_firebase_token,
-    get_firebase_user,
+    get_firebase_user as get_firestore_user,
     sign_in_with_email_password
 )
 from app.core.db_dependencies import db_session
 from typing import Dict
+from firebase_admin import auth as firebase_auth
+import httpx
+import os
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+router = APIRouter(tags=["Authentication"])
 
 security = HTTPBearer()
 
 @router.post("/register", response_model=Dict[str, str])
 async def register(
     user_in: UserCreate,
-    user_service: UserService = Depends(get_user_service)
 ):
     """
     Register a new user with Firebase Authentication.
     """
-    # Check if user already exists
-    existing_user = await user_service.get_user_by_email(user_in.email)
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-
-    # Create user in Firebase Auth
-    firebase_uid = await create_firebase_user(user_in.email, user_in.password)
-    print(f"Firebase UID: {firebase_uid}")
-    # Create user in Firestore
-    user_data = user_in.model_dump()
-    user_data["firebase_uid"] = firebase_uid
-    user_id = await user_service.create_user(user_data)
-    
-    return {"message": "User registered successfully", "user_id": user_id}
+    # Registration logic should use Firebase only, or you can remove this endpoint if not needed
+    raise HTTPException(status_code=501, detail="Registration via API not implemented. Use Firebase Auth client SDK.")
 
 @router.post("/login", response_model=Dict[str, str])
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    user_service: UserService = Depends(get_user_service)
 ):
     """
-    Login with Firebase Authentication.
+    Login with Firebase Authentication using email and password.
+    Returns Firebase ID token and refresh token on success.
     """
-    # Get user from Firestore
-    user = await user_service.get_user_by_email(form_data.username)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # Sign in with Firebase
-    tokens = await sign_in_with_email_password(form_data.username, form_data.password)
-    
-    return {
-        "access_token": tokens["id_token"],
-        "refresh_token": tokens["refresh_token"],
-        "token_type": "bearer",
-        "user_id": str(user.id)
+    FIREBASE_API_KEY = os.getenv("FIREBASE_WEB_API_KEY")
+    if not FIREBASE_API_KEY:
+        raise HTTPException(status_code=500, detail="FIREBASE_WEB_API_KEY environment variable is not set")
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_API_KEY}"
+    payload = {
+        "email": form_data.username,
+        "password": form_data.password,
+        "returnSecureToken": True
     }
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=payload)
+            if resp.status_code != 200:
+                raise HTTPException(status_code=401, detail="Invalid email or password")
+            data = resp.json()
+        return {
+            "access_token": data["idToken"],
+            "refresh_token": data["refreshToken"],
+            "token_type": "bearer",
+            "user_id": data["localId"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Login failed: {str(e)}")
 
 @router.get("/me", response_model=User)
 async def get_current_user_info(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_firebase_user)
 ):
     """
     Get current user information.
@@ -81,49 +73,20 @@ async def get_current_user_info(
 @router.put("/me", response_model=User)
 async def update_current_user_info(
     user_update: UserUpdate,
-    current_user: User = Depends(get_current_user),
-    user_service: UserService = Depends(get_user_service)
+    current_user: User = Depends(get_firebase_user),
 ):
     """
     Update current user information. Email cannot be updated.
     """
-    # Update user
-    update_data = user_update.model_dump(exclude_unset=True)
-    
-    # Ensure email and firebase_uid cannot be updated
-    if "email" in update_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email cannot be updated"
-        )
-    if "firebase_uid" in update_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Firebase UID cannot be updated"
-        )
-    
-    await user_service.update_user(current_user.id, update_data)
-    
-    # Get updated user
-    if not current_user.firebase_uid:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User has no Firebase UID"
-        )
-    updated_user = await user_service.get_user_by_firebase_uid(current_user.firebase_uid)
-    return updated_user
+    # Updating user info in Firebase Auth is not implemented here
+    raise HTTPException(status_code=501, detail="User update not implemented. Use Firebase Auth client SDK.")
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_current_user(
-    current_user: User = Depends(get_current_user),
-    user_service: UserService = Depends(get_user_service)
+    current_user: User = Depends(get_firebase_user),
 ):
     """
     Delete current user account.
     """
-    success = await user_service.delete_user(str(current_user.id))
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
+    # Deleting user in Firebase Auth is not implemented here
+    raise HTTPException(status_code=501, detail="User deletion not implemented. Use Firebase Auth client SDK.")
