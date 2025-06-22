@@ -34,7 +34,7 @@ async def register(
 
     # Create user in Firebase Auth
     firebase_uid = await create_firebase_user(user_in.email, user_in.password)
-    
+    print(f"Firebase UID: {firebase_uid}")
     # Create user in Firestore
     user_data = user_in.model_dump()
     user_data["firebase_uid"] = firebase_uid

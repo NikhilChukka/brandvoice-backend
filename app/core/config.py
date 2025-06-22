@@ -33,8 +33,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = Field(default=7, description="Refresh token expiration time in days")
 
     # ----- CORS -----
-    allow_origins: List[str] = ["https://brand-voice-phi.vercel.app/"]
-
+    allow_origins: List[str] = ["https://brand-voice-phi.vercel.app", "http://localhost:3000", "http://127.0.0.1:3000"]
     # ----- Twitter API -----
     twitter_api_key: str = os.getenv("TWITTER_API_KEY", "")
     twitter_api_secret: str = os.getenv("TWITTER_API_SECRET", "")
