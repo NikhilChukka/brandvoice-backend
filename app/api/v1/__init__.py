@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, product, content, scheduler, youtube, facebook, instagram, twitter
+from app.api.v1.endpoints import auth, product, content, scheduler, youtube, facebook, instagram, twitter, twitterNew
 
 router = APIRouter()
 
@@ -20,4 +20,5 @@ router.include_router(youtube.router, prefix="/youtube", tags=["YouTube"])
 router.include_router(facebook.router, prefix="/facebook", tags=["Facebook"])
 router.include_router(instagram.router, prefix="/instagram", tags=["Instagram"])
 router.include_router(twitter.router, prefix="/twitter", tags=["Twitter"])
+# router.include_router(twitterNew.router, prefix="/twitter-new", tags=["Twitter-New"])
 # router.include_router(health.router)

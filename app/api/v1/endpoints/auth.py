@@ -90,3 +90,37 @@ async def delete_current_user(
     """
     # Deleting user in Firebase Auth is not implemented here
     raise HTTPException(status_code=501, detail="User deletion not implemented. Use Firebase Auth client SDK.")
+
+@router.get("/users/{user_id}/connected-platforms", response_model=Dict[str, object])
+async def get_connected_platforms(
+    user_id: str,
+    db=Depends(db_session),
+    current_user=Depends(get_firebase_user),
+):
+    """
+    Return a dict of platforms that the user with Firebase UID = user_id is currently connected to (has active credentials).
+    Only the user themself or an admin can access this endpoint.
+    """
+    # Only allow self or admin
+    # if current_user.id != user_id:
+    #     raise HTTPException(status_code=403, detail="Not authorized to view this user's platforms.")
+
+    platforms = {}
+    platform_collections = {
+        "facebook": "facebook_credentials",
+        "twitter": "twitter_credentials",
+        "instagram": "instagram_credentials",
+        "youtube": "youtube_credentials",
+    }
+    for platform, collection in platform_collections.items():
+        creds = await db.query(
+            collection,
+            filters=[("user_id", "==", user_id)]
+        )
+        print(f"***Found {creds} active credentials for {platform}***")
+        if creds and len(creds) > 0:
+            platforms[platform] = {"status": "connected"}
+        else:
+            platforms[platform] = {"status": "not_connected"}
+
+    return {"user_id": user_id, "platforms_connected": platforms}

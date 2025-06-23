@@ -19,9 +19,10 @@ settings = get_settings()
 
 @router.get("/connect")
 async def youtube_connect(request: Request, user: User = Depends(get_firebase_user)):
+    print(f"***Received Callback URI: {settings.youtube_callback_url}***")
     params = {
         "client_id": settings.youtube_client_id,
-        "redirect_uri": settings.youtube_callback_url,
+        "redirect_uri": "https://brandvoice-api-995012456302.us-central1.run.app/api/v1/youtube/callback",
         "response_type": "code",
         "scope": "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.force-ssl",
         "access_type": "offline",
@@ -29,7 +30,8 @@ async def youtube_connect(request: Request, user: User = Depends(get_firebase_us
         "state": str(user.id)  # Pass user ID in state parameter
     }
     auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{'&'.join(f'{k}={v}' for k, v in params.items())}"
-    return RedirectResponse(auth_url)
+    # return RedirectResponse(auth_url)
+    return {"redirect_to" :auth_url}
 
 @router.get("/callback")
 async def youtube_callback(
@@ -56,7 +58,7 @@ async def youtube_callback(
                     "client_secret": settings.youtube_client_secret,
                     "code": code,
                     "grant_type": "authorization_code",
-                    "redirect_uri": settings.youtube_callback_url
+                    "redirect_uri": "https://brandvoice-api-995012456302.us-central1.run.app/api/v1/youtube/callback"
                 }
             )
             
@@ -218,56 +220,56 @@ async def youtube_upload(
 #     )
 #     return credentials
 
-# @router.get("/{credential_id}", response_model=YouTubeCredential)
-# async def get_youtube_credential(
-#     credential_id: str,
-#     db: FirestoreSession = Depends(get_db),
-#     current_user: User = Depends(get_firebase_user)
-# ):
-#     """Get a specific YouTube credential."""
-#     credential = await db.get("youtube_credentials", credential_id)
-#     if not credential:
-#         raise HTTPException(status_code=404, detail="YouTube credential not found")
+@router.get("/{user_id}", response_model=YouTubeCredential)
+async def get_youtube_credential(
+    credential_id: str,
+    db: FirestoreSession = Depends(get_db),
+    current_user: User = Depends(get_firebase_user)
+):
+    """Get a specific YouTube credential."""
+    credential = await db.get("youtube_credentials", credential_id)
+    if not credential:
+        raise HTTPException(status_code=404, detail="YouTube credential not found")
     
-#     if credential["user_id"] != str(current_user.id):
-#         raise HTTPException(status_code=403, detail="Not authorized to access this credential")
+    if credential["user_id"] != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not authorized to access this credential")
     
-#     return credential
+    return credential
 
-# @router.put("/{credential_id}", response_model=YouTubeCredential)
-# async def update_youtube_credential(
-#     credential_id: str,
-#     credential: YouTubeCredentialUpdate,
-#     db: FirestoreSession = Depends(get_db),
-#     current_user: User = Depends(get_firebase_user)
-# ):
-#     """Update a YouTube credential."""
-#     existing_credential = await db.get("youtube_credentials", credential_id)
-#     if not existing_credential:
-#         raise HTTPException(status_code=404, detail="YouTube credential not found")
+@router.put("/{user_id}", response_model=YouTubeCredential)
+async def update_youtube_credential(
+    user_id: str,
+    credential: YouTubeCredentialUpdate,
+    db: FirestoreSession = Depends(get_db),
+    current_user: User = Depends(get_firebase_user)
+):
+    """Update a YouTube credential."""
+    existing_credential = await db.get("youtube_credentials", user_id)
+    if not existing_credential:
+        raise HTTPException(status_code=404, detail="YouTube credential not found")
     
-#     if existing_credential["user_id"] != str(current_user.id):
-#         raise HTTPException(status_code=403, detail="Not authorized to update this credential")
+    if existing_credential["user_id"] != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not authorized to update this credential")
     
-#     update_data = credential.model_dump(exclude_unset=True)
-#     update_data["updated_at"] = datetime.utcnow()
-#     await db.update("youtube_credentials", credential_id, update_data)
+    update_data = credential.model_dump(exclude_unset=True)
+    update_data["updated_at"] = datetime.utcnow()
+    await db.update("youtube_credentials", user_id, update_data)
     
-#     updated_credential = await db.get("youtube_credentials", credential_id)
-#     return updated_credential
+    updated_credential = await db.get("youtube_credentials", user_id)
+    return updated_credential
 
-# @router.delete("/{credential_id}", status_code=status.HTTP_204_NO_CONTENT)
-# async def delete_youtube_credential(
-#     credential_id: str,
-#     db: FirestoreSession = Depends(get_db),
-#     current_user: User = Depends(get_firebase_user)
-# ):
-#     """Delete a YouTube credential."""
-#     existing_credential = await db.get("youtube_credentials", credential_id)
-#     if not existing_credential:
-#         raise HTTPException(status_code=404, detail="YouTube credential not found")
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_youtube_credential(
+    user_id: str,
+    db: FirestoreSession = Depends(get_db),
+    current_user: User = Depends(get_firebase_user)
+):
+    """Delete a YouTube credential."""
+    existing_credential = await db.get("youtube_credentials", user_id)
+    if not existing_credential:
+        raise HTTPException(status_code=404, detail="YouTube credential not found")
     
-#     if existing_credential["user_id"] != str(current_user.id):
-#         raise HTTPException(status_code=403, detail="Not authorized to delete this credential")
+    if existing_credential["user_id"] != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not authorized to delete this credential")
     
-#     await db.delete("youtube_credentials", credential_id)
+    await db.delete("youtube_credentials", user_id)

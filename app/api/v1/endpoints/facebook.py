@@ -37,7 +37,7 @@ async def fb_connect(
     url = "https://www.facebook.com/v23.0/dialog/oauth"
     params = {
         "client_id": settings.facebook_app_id,
-        "redirect_uri": settings.facebook_callback_url,
+        "redirect_uri": "https://brandvoice-api-995012456302.us-central1.run.app/api/v1/twitter/callback",
         "state": state,
         "scope": "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement"
     }
@@ -45,7 +45,8 @@ async def fb_connect(
     # Log the URL for debugging (remove in production)
     print(f"Facebook OAuth URL: {url}?{'&'.join(f'{k}={v}' for k, v in params.items())}")
     
-    return RedirectResponse(url=f"{url}?{'&'.join(f'{k}={v}' for k, v in params.items())}")
+    # return RedirectResponse(url=f"{url}?{'&'.join(f'{k}={v}' for k, v in params.items())}")
+    return {"redirect_to": f"{url}?{'&'.join(f'{k}={v}' for k, v in params.items())}"}
 
 @router.get("/callback")
 async def fb_callback(
@@ -59,7 +60,7 @@ async def fb_callback(
     params = {
         "client_id": settings.facebook_app_id,
         "client_secret": settings.facebook_app_secret,
-        "redirect_uri": settings.facebook_callback_url,
+        "redirect_uri": "https://brandvoice-api-995012456302.us-central1.run.app/api/v1/twitter/callback",
         "code": code
     }
     

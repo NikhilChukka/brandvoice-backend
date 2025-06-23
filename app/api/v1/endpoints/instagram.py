@@ -17,13 +17,14 @@ def instagram_connect(request: Request, user: User = Depends(get_firebase_user))
     fb_auth_url = "https://www.facebook.com/v23.0/dialog/oauth"
     params = {
         "client_id": settings.facebook_app_id,
-        "redirect_uri": settings.instagram_callback_url,
+        "redirect_uri": "https://brandvoice-api-995012456302.us-central1.run.app/api/v1/instagram/callback",
         "scope": "pages_show_list,instagram_basic,instagram_content_publish",
         "response_type": "code",
         "state": str(user.id)
     }
     url = httpx.URL(fb_auth_url, params=params)
-    return RedirectResponse(str(url))
+    # return RedirectResponse(str(url))
+    return {"redirect_to" : str(url)}
 
 @router.get("/callback")
 async def instagram_callback(
@@ -40,7 +41,7 @@ async def instagram_callback(
     token_url = "https://graph.facebook.com/v23.0/oauth/access_token"
     params = {
         "client_id": settings.facebook_app_id,
-        "redirect_uri": settings.instagram_callback_url,
+        "redirect_uri": "https://brandvoice-api-995012456302.us-central1.run.app/api/v1/instagram/callback",
         "client_secret": settings.facebook_app_secret,
         "code": code
     }

@@ -10,13 +10,6 @@ from pathlib import Path
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(dotenv_path=dotenv_path)
 
-def clean_int_env(var_name: str, default: str) -> int:
-    """Clean and convert environment variable to integer."""
-    value = os.getenv(var_name, default)
-    # Remove any comments and whitespace
-    value = value.split('#')[0].strip()
-    return int(value)
-
 class Settings(BaseSettings):
     # ----- app -----
     app_name: str = "BrandVoice External APIs"
@@ -29,17 +22,19 @@ class Settings(BaseSettings):
     # ----- auth / jwt -----
     secret_key: str = os.getenv("SECRET_KEY", "your-secret-key-here")
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = Field(default=30, description="Access token expiration time in minutes")
-    refresh_token_expire_days: int = Field(default=7, description="Refresh token expiration time in days")
+    access_token_expire_minutes: int = Field(default=30)
+    refresh_token_expire_days: int = Field(default=7)
 
     # ----- CORS -----
     allow_origins: List[str] = ["https://brand-voice-phi.vercel.app", "http://localhost:3000", "http://127.0.0.1:3000"]
+
     # ----- Twitter API -----
     twitter_api_key: str = os.getenv("TWITTER_API_KEY", "")
     twitter_api_secret: str = os.getenv("TWITTER_API_SECRET", "")
-    twitter_callback_url: str = os.getenv("TWITTER_CALLBACK_URL", "")
+    twitter_callback_url: str=  os.getenv("TWITTER_CALLBACK_URL", "")
     twitter_bearer_token: str = os.getenv("TWITTER_BEARER_TOKEN", "")
-
+    twitter_api_client_id: str = os.getenv("TWITTER_OA2_CLIENT_ID", "")
+    twitter_api_client_secret: str = os.getenv("TWITTER_OA2_CLIENT_SECRET", "")
     # ----- misc (optional) -----
     redis_url: str | None = None
     broker_url: str | None = None
@@ -48,8 +43,9 @@ class Settings(BaseSettings):
     # ----- Facebook API -----
     facebook_app_id: str = os.getenv("FACEBOOK_OA2_CLIENT_ID", "")
     facebook_app_secret: str = os.getenv("FACEBOOK_OA2_CLIENT_SECRET", "")
-    facebook_callback_url: str = os.getenv("FACEBOOK_CALLBACK_URL", "")
-    instagram_callback_url: str = os.getenv("INSTAGRAM_CALLBACK_URL", "")
+    facebook_callback_url : str = os.getenv("FACEBOOK_CALLBACK_URL", "")
+    # instagram_callback_url : List[str] = Field(default_factory=lambda:os.getenv("INSTAGRAM_CALLBACK_URL", "").split())
+    instagram_callback_url :str = os.getenv("INSTAGRAM_CALLBACK_URL", "")
 
     # ----- YouTube API -----
     youtube_client_id: str = os.getenv("YOUTUBE_CLIENT_ID", "")
