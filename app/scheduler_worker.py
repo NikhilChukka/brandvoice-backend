@@ -95,6 +95,7 @@ async def post_to_instagram(
 
         # Step 2 — poll for video status if video_url
         if video_url:
+            status_json: Dict[str, Any] = {}
             for _ in range(20):  # Try for up to ~1 minute (20 x 3s)
                 status_url = f"https://graph.facebook.com/v23.0/{container_id}?fields=status_code&access_token={token}"
                 async with session.get(status_url) as status_resp:
@@ -158,8 +159,8 @@ async def process_due_schedules() -> None:
             continue
 
         mc_root = product.get("marketing_content", {})
-        youtube_video_url = product.get("video_url")
-        print(f"\n*** Processing video URL: {youtube_video_url} ***\n")
+        # youtube_video_url = product.get("video_url")
+        # print(f"\n*** Processing video URL: {youtube_video_url} ***\n")
         results: Dict[str, str] = {}
 
         # 2️⃣  Iterate over each requested platform
@@ -168,24 +169,36 @@ async def process_due_schedules() -> None:
             try:
                 block = mc_root.get(platform, {})
                 content = block.get("content", {})
-
-                caption = content.get("caption", "") or ""
+                
                 cta = content.get("call_to_action", "") or ""
+                caption = content.get("caption", "") or ""
+                description = content.get("description", "") or ""
                 text = content.get("text", "") or ""
-                hashtags = content.get("hashtags", []) or []
+                if len(content.get("hashtags", [])) > 0:
+                    hashtags = content.get("hashtags", [])
+                elif len(content.get("tags", [])) > 0:
+                    hashtags = content.get("tags", [])
+                else:
+                    hashtags = []
                 if isinstance(hashtags, str):
                     hashtags = hashtags.split()
                 hashtags_str = " ".join(hashtags)
-
+                
+                print(f"\n*** Processing platform: {platform} ***\n")
+                print(f"*** Caption: {caption} ***")
+                print(f"*** Call to Action: {cta} ***")
+                print(f"*** Hashtags: {hashtags_str} ***")
+                print(f"*** Text: {text} ***")
+                print(f"*** Description: {description} ***")
                 img_url = block.get("image_url")
                 vid_url = block.get("video_url")
 
-                message = f"{caption}\n\n{cta}\n\n{hashtags_str}".strip()
-                
+                message = f"{caption}\n\n{hashtags_str}".strip()
+                print(f"*** Initial message: {message} ***")
                 if platform == "twitter" or platform == "x" or platform == "facebook":
                     # Twitter/X has a 280 char limit, truncate if needed
                     message = ""
-                    message = f"{cta}\n\n{text}\n\n{hashtags_str}".strip()
+                    message = f"{caption}\n\n{text}\n\n{hashtags_str}".strip()
                 if platform == "youtube":
                     message = ""
                     message = f"{caption}\n\n{cta}\n\n{hashtags_str}".strip()
@@ -278,20 +291,27 @@ async def process_due_schedules() -> None:
                         results[raw_platform] = "no_credentials"
                         continue
                     cred = creds[0]
-                    if not youtube_video_url:
+                    if not vid_url:
                         print(f"[DEBUG] YouTube post requires video_url")
                         results[raw_platform] = "no_video"
                         continue
-                    vid_url= youtube_video_url
+                    
                     if vid_url:
+                        # YouTube titles must be <= 100 chars and on a single line.
+                        title = " ".join(message.splitlines()).strip()
+                        if len(title) > 100:
+                            title = title[:97] + "..."
+                        if not title:
+                            title = "Untitled Video"
+
                         tmp_vid = TMP_DIR / f"{product_id}_yt_video.mp4"
                         await download_file(vid_url, tmp_vid)
-                        print(f"[DEBUG] Downloaded YouTube video to {tmp_vid}")
+                        print(f"***Here's the message, {message} \n\n[DEBUG] Downloaded YouTube video to {tmp_vid}")
                         result_from_you = await upload_video_for_user(
                             cred,
-                            tmp_vid,
-                            title=caption,
-                            desc=cta,
+                            str(tmp_vid),
+                            title=title,
+                            desc=description,
                         )
                         print(f"***YouTube upload result: {result_from_you}***")
                         os.remove(tmp_vid)
@@ -300,7 +320,7 @@ async def process_due_schedules() -> None:
                         print(f"[DEBUG] Skipping YouTube upload: image uploads are not supported.")
                         results[raw_platform] = "image_not_supported"
                     else:
-                        print(f"[DEBUG] YouTube post requires video_url or image_url")
+                        print(f"[DEBUG] YouTube post requires video_url")
                         results[raw_platform] = "no_video_or_image"
                         continue
 
