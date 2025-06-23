@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, Form, status
 from app.models import User
 from app.core.config import get_settings
+from app.api.v1.dependencies import get_firebase_user
 from app.core.db_dependencies import get_db
-from app.api.v1.dependencies import get_current_user
 from app.models.firestore_db import FirestoreSession
 from app.models.instagram import InstagramCredential, InstagramCredentialCreate, InstagramCredentialUpdate
 import httpx
@@ -13,17 +13,18 @@ settings = get_settings()
 router = APIRouter(tags=["Instagram"])
 
 @router.get('/connect')
-def instagram_connect(request: Request, user: User = Depends(get_current_user)):
+def instagram_connect(request: Request, user: User = Depends(get_firebase_user)):
     fb_auth_url = "https://www.facebook.com/v23.0/dialog/oauth"
     params = {
         "client_id": settings.facebook_app_id,
-        "redirect_uri": settings.instagram_callback_url,
+        "redirect_uri": "https://brandvoice-api-995012456302.us-central1.run.app/api/v1/instagram/callback",
         "scope": "pages_show_list,instagram_basic,instagram_content_publish",
         "response_type": "code",
         "state": str(user.id)
     }
     url = httpx.URL(fb_auth_url, params=params)
-    return RedirectResponse(str(url))
+    # return RedirectResponse(str(url))
+    return {"redirect_to" : str(url)}
 
 @router.get("/callback")
 async def instagram_callback(
@@ -40,7 +41,7 @@ async def instagram_callback(
     token_url = "https://graph.facebook.com/v23.0/oauth/access_token"
     params = {
         "client_id": settings.facebook_app_id,
-        "redirect_uri": settings.instagram_callback_url,
+        "redirect_uri": "https://brandvoice-api-995012456302.us-central1.run.app/api/v1/instagram/callback",
         "client_secret": settings.facebook_app_secret,
         "code": code
     }
@@ -136,7 +137,7 @@ async def instagram_callback(
 
 @router.get("/credentials", response_model=list[InstagramCredential])
 async def list_credentials(
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(get_db)
 ):
     """List all Instagram credentials for the current user."""
@@ -149,7 +150,7 @@ async def list_credentials(
 @router.get("/credentials/{credential_id}", response_model=InstagramCredential)
 async def get_credential(
     credential_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(get_db)
 ):
     """Get a specific Instagram credential."""
@@ -165,7 +166,7 @@ async def get_credential(
 @router.delete("/credentials/{credential_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_credential(
     credential_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(get_db)
 ):
     """Delete an Instagram credential."""
@@ -185,7 +186,7 @@ async def create_media(
     image_url: str = Form(...),
     caption: str | None = Form(None),
     credential_id: str | None = Form(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(get_db)
 ):
     # Get the credential
@@ -220,7 +221,7 @@ async def create_media(
 async def media_status(
     container_id: str,
     credential_id: str | None = None,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(get_db)
 ):
     # Get the credential
@@ -253,7 +254,7 @@ async def media_status(
 async def publish_media(
     container_id: str = Form(...),
     credential_id: str | None = Form(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_firebase_user),
     db: FirestoreSession = Depends(get_db)
 ):
     # Get the credential

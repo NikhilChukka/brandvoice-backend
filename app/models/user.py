@@ -4,7 +4,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 class UserBase(BaseModel):
     """Base user model with common attributes."""
-    email: EmailStr
+    email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     is_active: bool = True
     is_superuser: bool = False

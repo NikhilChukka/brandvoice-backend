@@ -67,10 +67,10 @@ def create_app() -> FastAPI:
             "useBasicAuthenticationWithAccessCodeGrant": True
         }
     )
-
+    print(f"****Loaded ALlowed Origins: {s.allow_origins}***")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=s.allow_origins, allow_credentials=True,
+        allow_origins=s.allow_origins or ["*"], allow_credentials=True,
         allow_methods=["*"], allow_headers=["*"],
     )
 
